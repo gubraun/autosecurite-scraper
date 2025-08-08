@@ -1,17 +1,68 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.common.by import By
+from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.support.expected_conditions import (
+    presence_of_element_located,
+    element_to_be_clickable
+)
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.keys import Keys
+import os
+from dotenv import load_dotenv
+import smtplib
+from email.message import EmailMessage
+import ssl
 import random
 import time
-from selenium.webdriver.common.by import By
-from selenium import webdriver
 
-browser = webdriver.Chrome()
-browser.maximize_window()
+
+# Cronjob: Zusätzliche Bibliothek, um das Skript ohne GUI auszuführen
+# from pyvirtualdisplay import Display
+
+def accept_cookies():
+    try:
+        print("Wait for cookie banner...")
+        
+        host = WebDriverWait(browser, 10).until(
+            presence_of_element_located((By.XPATH, "//cuip-cookies-consent-banner"))
+        )
+
+        print(
+            "Check if accept button is present and clickable..."
+        )
+
+        def consent_button_clickable(_driver):
+                element = host.find_element(By.XPATH, "//cuip-cookies-consent-banner//descendant::button")
+                return (
+                    element
+                    if element.is_displayed() and element.is_enabled()
+                    else False
+                )
+
+        consent_button = WebDriverWait(browser, 10).until(consent_button_clickable)
+        consent_button.click()
+    except Exception as e:
+        print(f"Error accepting cookies: {e}")
+
+
+options = Options()
+# Try several ways to ensure opening the website in German language
+options.add_argument("--lang=de")
+options.add_argument("--accept-languages=de")
+options.add_experimental_option("prefs", {"intl.accept_languages": "de,de_DE"})
+
+browser = webdriver.Chrome(options=options)
 browser.get("https://rendezvous.permisconduire.be/public/start")
 
 time.sleep(2)
 
 # Accept cookies
-cookie_button = browser.find_element(By.XPATH, "(//button[contains(@class, 'cuip-button-primary')])[2]")
-cookie_button.click()
+accept_cookies()
 
 # Fill in the cadidate form
 first_name = browser.find_element(By.XPATH, "//input[@id='firstName']")
