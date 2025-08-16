@@ -185,8 +185,9 @@ async def main():
             termin_link = f'<a href="{url}">Termin ändern</a>'
             # Add scheduled date to the message if available
             if scheduled_date:
+                scheduled_date_string = scheduled_date.strftime("%A, %d.%m.%Y %H:%M")
                 message = (
-                    f"<b>Aktuell gebuchter Termin:</b>\n{scheduled_date.strftime("%A, %d.%m.%Y %H:%M")}\n\n"
+                    f"<b>Aktuell gebuchter Termin:</b>\n{scheduled_date_string}\n\n"
                     f"<b>Verfügbare Prüfungstermine:</b>\n" + "\n".join(msg_lines) + f"\n\n{termin_link}"
                 )
             else:
