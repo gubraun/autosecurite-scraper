@@ -63,16 +63,18 @@ HEADLESS = true                ; true = no browser window, false = show browser
 ENABLED = false                ; true to enable Telegram notifications
 TELEGRAM_BOT_TOKEN = your_bot_token_here
 CHAT_ID = your_chat_id_here
+ALWAYS_SEND = false
 ```
 
 ### Settings explained
 
-- **URL**: The booking page URL for your test center and candidate.
-- **DATE_LANGUAGES**: Which exam languages to search for (`de` for German, `fr` for French, or both).
-- **HEADLESS**: Run browser in headless mode (`true` recommended for servers and Raspberry Pi).
-- **[TELEGRAM] ENABLED**: Set to `true` to enable Telegram notifications.
-- **TELEGRAM_BOT_TOKEN**: Your Telegram bot token (get from [BotFather](https://t.me/BotFather)).
-- **CHAT_ID**: The chat ID (user or group) to send notifications to.
+- `URL`: The booking page URL for your test center and candidate.
+- `DATE_LANGUAGES`: Which exam languages to search for (`de` for German, `fr` for French, or both).
+- `HEADLESS`: Run browser in headless mode (`true` recommended for servers and Raspberry Pi).
+- `[TELEGRAM] ENABLED`: Set to `true` to enable Telegram notifications.
+- `TELEGRAM_BOT_TOKEN`: Your Telegram bot token (get from [BotFather](https://t.me/BotFather)).
+- `CHAT_ID`: The chat ID (user or group) to send notifications to.
+- `ALWAYS_SEND`: Always send a Telegram message, not just when there are new and earlier dates.
 
 ## Sample config.ini
 
