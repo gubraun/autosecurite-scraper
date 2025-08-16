@@ -1,9 +1,14 @@
 import asyncio
 from playwright.async_api import async_playwright
 import configparser
+import json
+import os
 import re
 from datetime import datetime
 import telegram
+
+CONFIG_PATH = "config.ini"
+LAST_DATES_PATH = "last_dates.json"
 
 MONTHS = {
     # German
@@ -13,6 +18,48 @@ MONTHS = {
     "janvier": 1, "février": 2, "fevrier": 2, "mars": 3, "avril": 4, "mai": 5, "juin": 6,
     "juillet": 7, "août": 8, "aout": 8, "septembre": 9, "octobre": 10, "novembre": 11, "décembre": 12, "decembre": 12
 }
+
+def load_config():
+    config = configparser.ConfigParser()
+    config.read(CONFIG_PATH)
+    return config
+
+def load_last_dates():
+    if os.path.exists(LAST_DATES_PATH):
+        with open(LAST_DATES_PATH, "r") as f:
+            # Parse ISO strings back to datetime objects
+            return set(datetime.fromisoformat(dtstr) for dtstr in json.load(f))
+    return set()
+
+def save_current_dates(dates):
+    # Convert datetime objects to ISO strings for JSON serialization
+    with open(LAST_DATES_PATH, "w") as f:
+        json.dump([dt.isoformat() for dt in dates], f)
+
+def should_send_telegram(current_dates, config, scheduled_date=None):
+    # If always flag is set, send regardless of dates
+    always = config.getboolean("TELEGRAM", "ALWAYS_SEND", fallback=False)
+    if always:
+        print("Always send flag is set. Sending message regardless of dates.")
+        return True  # Always send if the flag is set
+
+    # Otherwise only send if there are new dates that are earlier than the currently scheduled date
+
+    # Check for new dates since last run
+    last_dates = load_last_dates()
+    new_dates = set(current_dates) - last_dates
+    if new_dates:
+        save_current_dates(current_dates)
+
+    # If at least one new dates if earlier than the scheduled date, send a message
+    if scheduled_date:
+        earlier_dates = [dt for dt in new_dates if dt < scheduled_date]
+        if earlier_dates:
+            return True
+    else:
+        return True  # If no scheduled date, send if there are any new dates
+        
+    return False
 
 async def send_telegram_message(token, chat_id, message):
     bot = telegram.Bot(token=token)
@@ -25,7 +72,7 @@ async def main():
     # Read config
     config = configparser.ConfigParser()
     config.read("config.ini")
-    url = config["DEFAULT"]["URL"]
+    url = config["DEFAULT"].get("URL")
     date_languages = config["DEFAULT"].get("DATE_LANGUAGES", "de").lower().replace(" ", "").split(",")
 
     # Build flag selectors based on config
@@ -56,6 +103,11 @@ async def main():
             print("Cookie banner accepted.")
         except Exception as e:
             print(f"No cookie banner found or error accepting cookies: {e}")
+
+        # Extract currently scheduled date
+        scheduled_date = await extract_scheduled_date(page)
+        if scheduled_date:
+            print(f"Currently scheduled date: {scheduled_date}")
 
         # Click the button to change the reservation
         try:
@@ -107,6 +159,13 @@ async def main():
         except Exception as e:
             print(f"Could not select 'Führerscheinzentrum Eupen (1029)': {e}")
 
+        # Print currently scheduled date
+        if scheduled_date:
+            print("Scheduled date:")
+            print("  -", scheduled_date.strftime("%A, %d.%m.%Y %H:%M"))
+        else:
+            print("Warning: no currently scheduled date found.")
+
         # Find available test dates
         available_dates = await find_test_dates(page, flag_selector)
         if available_dates:
@@ -122,18 +181,25 @@ async def main():
         telegram_chat_id = config["TELEGRAM"].get("CHAT_ID", "")
 
         if available_dates:
-            print("Available dates:")
-            msg_lines = []
-            for dt in available_dates:
-                line = dt.strftime("%A, %d.%m.%Y %H:%M")
-                print("  -", line)
-                msg_lines.append(line)
-            # Send Telegram message if enabled and config is set
+            msg_lines = [dt.strftime("%A, %d.%m.%Y %H:%M") for dt in available_dates]
+            termin_link = f'<a href="{url}">Termin ändern</a>'
+            # Add scheduled date to the message if available
+            if scheduled_date:
+                message = (
+                    f"<b>Aktuell gebuchter Termin:</b>\n{scheduled_date.strftime("%A, %d.%m.%Y %H:%M")}\n\n"
+                    f"<b>Verfügbare Prüfungstermine:</b>\n" + "\n".join(msg_lines) + f"\n\n{termin_link}"
+                )
+            else:
+                message = "<b>Verfügbare Prüfungstermine:</b>\n" + "\n".join(msg_lines) + f"\n\n{termin_link}"
+
             if telegram_enabled and telegram_token and telegram_chat_id:
-                message = "<b>Prüfungstermine:</b>\n" + "\n".join(msg_lines)
-                await send_telegram_message(telegram_token, telegram_chat_id, message)
+                if should_send_telegram(available_dates, config, scheduled_date):
+                    await send_telegram_message(telegram_token, telegram_chat_id, message)
+                else:
+                    print("No new/earlier dates. Telegram message not sent.")
         else:
             print("No available dates found.")
+            # Optionally, you could clear last_dates.json here if you want to reset on no dates
 
         # Abort the process by clicking "Änderung abbrechen"
         try:
@@ -220,5 +286,28 @@ async def find_test_dates(page, flag_selector):
         print(f"Error finding test dates: {e}")
         return []
 
+async def extract_scheduled_date(page):
+    try:
+        await page.wait_for_selector("app-offer span.offer-date", timeout=10000)
+        elem = await page.query_selector("app-offer span.offer-date")
+        if elem:
+            date_text = (await elem.inner_text()).strip()
+            # Example: "Mittwoch 19 november 2025  07:30"
+            match = re.search(r"(\d{1,2})\s+([a-zA-Zäöüéèêûôîç]+)\s+(\d{4})\s+(\d{2}):(\d{2})", date_text.lower())
+            if match:
+                day = int(match.group(1))
+                month_str = match.group(2)
+                month = MONTHS.get(month_str, 0)
+                year = int(match.group(3))
+                hour = int(match.group(4))
+                minute = int(match.group(5))
+                if month:
+                    return datetime(year, month, day, hour, minute)
+            print(f"Could not parse scheduled date: {date_text}")
+    except Exception as e:
+        print(f"Could not extract scheduled date: {e}")
+    return None
+
 if __name__ == "__main__":
+    config = load_config()
     asyncio.run(main())
