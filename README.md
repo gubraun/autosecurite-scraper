@@ -80,6 +80,9 @@ ALWAYS_SEND = false
 
 See [`config.ini.sample`](config.ini.sample) for a template you can safely commit.
 
+## Telegram setup
+See [How to send notifications to Telegram with Python](https://andrewkushnerov.medium.com/how-to-send-notifications-to-telegram-with-python-9ea9b8657bfb).
+
 ---
 
 **Note:**  
