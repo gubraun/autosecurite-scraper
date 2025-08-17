@@ -74,7 +74,7 @@ ALWAYS_SEND = false
 - `[TELEGRAM] ENABLED`: Set to `true` to enable Telegram notifications.
 - `TELEGRAM_BOT_TOKEN`: Your Telegram bot token (get from [BotFather](https://t.me/BotFather)).
 - `CHAT_ID`: The chat ID (user or group) to send notifications to.
-- `ALWAYS_SEND`: Always send a Telegram message, not just when there are new and earlier dates.
+- `ALWAYS_SEND`: Always send a Telegram message if any dates are available (not just new and earlier ones).
 
 ## Sample config.ini
 
