@@ -1,0 +1,4 @@
+.venv
+config.ini
+last_dates.json
+__pycache__/
